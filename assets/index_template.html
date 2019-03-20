@@ -1,261 +1,281 @@
 <!doctype html>
 <html>
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <script src="jquery.min.js"></script>
-  <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      overflow-x: hidden;
-    }
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 
-    .prototype-container {
-      position: absolute;
-      height: 100%;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-    }
+    <script src="jquery.min.js"></script>
 
-    .prototype-container ::-webkit-scrollbar {
-      display: none;
-    }
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            overflow-x: hidden;
+            background: #777;
+        }
 
-    .artboard {
-      position: absolute;
-      left: 0;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      opacity: 0;
-      display: none;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
-      overflow: hidden;
-    }
+        .prototype-container {
+            position: absolute;
+            height: 100%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
 
-    .artboard.is-active {
-      opacity: 1;
-      display: block;
-    }
+        .prototype-container ::-webkit-scrollbar {
+            display: none;
+        }
 
-    .artboard-scroll-container,
-    .artboard-fixed-container {
-      position: absolute;
-      left: 0;
-      top: 0;
-      right: 0;
-      bottom: 0;
-    }
+        .artboard {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0;
+            display: none;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, .12);
+            overflow: hidden;
+        }
 
-    .artboard-fixed-container {
-      pointer-events: none;
-    }
+        .artboard.is-active {
+            opacity: 1;
+            display: block;
+        }
 
-    .artboard-scroll-container {
-      overflow: scroll;
-    }
+        .artboard-scroll-container,
+        .artboard-fixed-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+        }
 
-    .artboard-content {
-      position: absolute;
-      left: 0;
-      top: 0;
-      background-size: contain;
-    }
+        .artboard-fixed-container {
+            pointer-events: none;
+        }
 
-    .hotspot {
-      cursor: pointer;
-      position: absolute;
-      opacity: 0;
-    }
+        .artboard-scroll-container {
+            overflow: scroll;
+        }
 
-    body[can-show-hotspots] .hotspot {
-      background-color: rgba(239, 108, 0, .2);
-      box-shadow:
-          0 0 0 3px rgba(239, 108, 0, .5) inset,
-          0 4px 8px rgba(239, 108, 0, .25);
-    }
+        .artboard-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            background-size: contain;
+        }
 
-    .highlight-hotspots .hotspot {
-      animation: hotspotAnimation .6s ease;
-    }
+        .hotspot {
+            cursor: pointer;
+            position: absolute;
+            opacity: 0;
+        }
 
-    @keyframes hotspotAnimation {
-      0% {
-        opacity: 0;
-      }
-      50% {
-        opacity: 1;
-      }
-      100% {
-        opacity: 0;
-      }
-    }
-  </style>
+        body[can-show-hotspots] .hotspot {
+            background-color: rgba(239, 108, 0, .2);
+            box-shadow:
+                0 0 0 3px rgba(239, 108, 0, .5) inset,
+                0 4px 8px rgba(239, 108, 0, .25);
+        }
+
+        .highlight-hotspots .hotspot {
+            animation: hotspotAnimation .6s ease;
+        }
+
+        @keyframes hotspotAnimation {
+            0% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+    </style>
 </head>
+
 <body <%= showHotspots ? 'can-show-hotspots' : '' %>>
 
-  <div class="prototype-container">
-  </div>
+    <div class="prototype-container">
+    </div>
 
-  <script>
+    <script>
+        var init = (function (window, $) {
+            var currentArtboard = null
+            var startArtboard = null
+            var prototypeData = null
+            var shouldSuppressHotspotReveal_ = false
 
-    class Proto {
-      constructor(prototypeData) {
-        this.prototypeData = prototypeData;
-        this.buildUi();
-      }
+            return function init(data) {
+                prototypeData = data
 
-      buildUi() {
-        this.buildArtboards();
+                buildArtboards();
 
-        if (this.prototypeData.title) {
-          document.title = this.prototypeData.title;
-        }
+                if (prototypeData.title) {
+                    document.title = prototypeData.title;
+                }
 
-        $(window).on('hashchange', () => {
-          this.setArtboardVisible(this.getUrlInfo().artboardId);
-        });
+                $(window).on('hashchange', function () {
+                    setArtboardVisible(getUrlInfo().artboardId);
+                });
 
-        $(document).click(() => {
-          if (this.shouldSuppressHotspotReveal_) {
-            return;
-          }
+                $(document).click(function () {
+                    if (shouldSuppressHotspotReveal_) {
+                        return;
+                    }
 
-          $(document.body).removeClass('highlight-hotspots');
-          let f = document.body.offsetWidth;
-          $(document.body).addClass('highlight-hotspots');
-        });
+                    $(document.body).removeClass('highlight-hotspots');
+                    var f = document.body.offsetWidth;
+                    $(document.body).addClass('highlight-hotspots');
+                });
 
-        $(window).on('resize', () => this.resize());
+                $(window).on('resize', function () {
+                    resize()
+                });
 
-        this.setArtboardVisible(this.getUrlInfo().artboardId);
-      }
+                setArtboardVisible(getUrlInfo().artboardId);
+            }
 
-      resize() {
-        let width = this.startArtboard.viewportWidth || this.startArtboard.width;
-        let height = this.startArtboard.viewportHeight || this.startArtboard.height;
-        if (this.currentArtboard.viewportWidth && this.currentArtboard.viewportHeight) {
-          width = this.currentArtboard.viewportWidth;
-          height = this.currentArtboard.viewportHeight;
-        }
+            function resize() {
+                var width = startArtboard.viewportWidth || startArtboard.width;
+                var height = startArtboard.viewportHeight || startArtboard.height;
 
-        let xScale = window.innerHeight / height;
-        let yScale = window.innerWidth / width;
-        $('.prototype-container')
-            .css({
-              width: width,
-              height: height,
-              zoom: Math.min(1, Math.min(xScale, yScale)),
-            });
-      }
+                if (currentArtboard.viewportWidth && currentArtboard.viewportHeight) {
+                    width = currentArtboard.viewportWidth;
+                    height = currentArtboard.viewportHeight;
+                }
 
-      getUrlInfo() {
-        let hash = window.location.hash;
+                var xScale = window.innerHeight / height;
+                var yScale = window.innerWidth / width;
 
-        return {
-          artboardId: hash ? hash.substring(1) : this.prototypeData.flowStartArtboardId,
-        };
-      }
+                $('.prototype-container')
+                    .css({
+                        width: width,
+                        height: height,
+                        zoom: Math.min(1, Math.min(xScale, yScale)),
+                    });
+            }
 
-      buildArtboards() {
-        Object.keys(this.prototypeData.artboards).forEach(id => {
-          let artboardData = this.prototypeData.artboards[id];
-          let $artboard = $('<div>')
-              .addClass('artboard')
-              .attr('data-artboard-id', id)
-              .appendTo('.prototype-container');
+            function getUrlInfo() {
+                var hash = window.location.hash;
 
-          // add scrollable content
-          let $artboardScrollContainer = $('<div>')
-              .addClass('artboard-scroll-container')
-              .appendTo($artboard);
-          let $artboardScrollableContent = $('<div>')
-              .addClass('artboard-content')
-              .css({
-                backgroundImage: `url(${id}.png)`,
-                width: artboardData.width,
-                height: artboardData.height,
-              })
-              .appendTo($artboardScrollContainer);
+                return {
+                    artboardId: hash ? hash.substring(1) : prototypeData.flowStartArtboardId,
+                };
+            }
 
-          // add fixed content
-          if (artboardData.hasFixedLayers) {
-            let $artboardFixedContainer = $('<div>')
-                .addClass('artboard-fixed-container')
-                .appendTo($artboard);
-            let $artboardFixedContent = $('<div>')
-                .addClass('artboard-content')
-                .css({
-                  backgroundImage: `url(${id}_fixed.png)`,
-                  width: artboardData.width,
-                  height: artboardData.height,
-                })
-                .appendTo($artboardFixedContainer);
-          }
+            function buildArtboards() {
+                $.each(prototypeData.artboards, function (id) {
+                    var artboardData = prototypeData.artboards[id];
+                    var $artboard = $('<div>')
+                        .addClass('artboard')
+                        .attr('data-artboard-id', id)
+                        .appendTo('.prototype-container');
 
-          if (id == this.prototypeData.flowStartArtboardId) {
-            // this is the start artboard
-            this.startArtboard = artboardData;
-            this.currentArtboard = artboardData;
-          }
+                    // add scrollable content
+                    var $artboardScrollContainer = $('<div>')
+                        .addClass('artboard-scroll-container')
+                        .appendTo($artboard);
+                    var $artboardScrollableContent = $('<div>')
+                        .addClass('artboard-content')
+                        .css({
+                            backgroundImage: 'url(' + id + '.png)',
+                            width: artboardData.width,
+                            height: artboardData.height,
+                        })
+                        .appendTo($artboardScrollContainer);
 
-          artboardData.hotspots.forEach(hotspotData => {
-            let $hotspot = $('<div>')
-              .addClass('hotspot')
-              .attr('data-artboard-id', id)
-              .css({
-                left: hotspotData.rectangle.x,
-                top: hotspotData.rectangle.y,
-                width: hotspotData.rectangle.width,
-                height: hotspotData.rectangle.height,
-              })
-              .appendTo(hotspotData.isFixed
-                  ? $artboard // don't add to $artboardFixedContent because of pointer-events:none
-                  : $artboardScrollableContent);
-            $hotspot.click(event => {
-              this.gotoTarget(hotspotData.target)
-              event.stopPropagation();
-            });
-          });
-        });
-      }
+                    // add fixed content
+                    if (artboardData.hasFixedLayers) {
+                        var $artboardFixedContainer = $('<div>')
+                            .addClass('artboard-fixed-container')
+                            .appendTo($artboard);
+                        var $artboardFixedContent = $('<div>')
+                            .addClass('artboard-content')
+                            .css({
+                                backgroundImage: 'url(' + id + '_fixed.png)',
+                                width: artboardData.width,
+                                height: artboardData.height,
+                            })
+                            .appendTo($artboardFixedContainer);
+                    }
 
-      gotoTarget(target) {
-        if (target == 'back') {
-          history.back();
-          return;
-        }
+                    if (id == prototypeData.flowStartArtboardId) {
+                        // this is the start artboard
+                        startArtboard = artboardData;
+                        currentArtboard = artboardData;
+                    }
 
-        this.gotoArtboard(target);
-      }
+                    $.each(artboardData.hotspots, function (id, hotspotData) {
+                        var $hotspot = $('<div>')
+                            .addClass('hotspot')
+                            .attr('data-artboard-id', id)
+                            .css({
+                                left: hotspotData.rectangle.x,
+                                top: hotspotData.rectangle.y,
+                                width: hotspotData.rectangle.width,
+                                height: hotspotData.rectangle.height,
+                            })
+                            .appendTo(hotspotData.isFixed ?
+                                $artboard // don't add to $artboardFixedContent because of pointer-events:none
+                                :
+                                $artboardScrollableContent);
 
-      gotoArtboard(artboardId) {
-        window.location.href= '#' + artboardId;
-      }
+                        $hotspot.click(function (event) {
+                            gotoTarget(hotspotData.target)
+                            event.stopPropagation();
+                        });
+                    });
+                });
+            }
 
-      setArtboardVisible(artboardId) {
-        this.currentArtboard = this.prototypeData.artboards[artboardId];
+            function gotoTarget(target) {
+                if (target == 'back') {
+                    history.back();
+                    return;
+                }
 
-        $('.artboard-scroll-container').scrollLeft(0).scrollTop(0);
+                gotoArtboard(target);
+            }
 
-        $(document.body).removeClass('highlight-hotspots');
-        $('.artboard').removeClass('is-active');
-        $(`.artboard[data-artboard-id="${artboardId}"]`).addClass('is-active');
+            function gotoArtboard(artboardId) {
+                window.location.href = '#' + artboardId;
+            }
 
-        this.resize();
-      }
-    }
+            function setArtboardVisible(artboardId) {
+                currentArtboard = prototypeData.artboards[artboardId];
 
-  </script>
-  <script>
-    new Proto(
-      <%= JSON.stringify(prototypeData) %>
-    );
-  </script>
+                $('.artboard-scroll-container').scrollLeft(0).scrollTop(0);
 
+                $(document.body).removeClass('highlight-hotspots');
+
+                $('.artboard').removeClass('is-active');
+                $('.artboard[data-artboard-id="' + artboardId + '"]').addClass('is-active');
+
+                resize();
+            }
+        })(window, jQuery)
+
+    </script>
+
+    <script>
+        init(
+            <%= JSON.stringify(prototypeData) %>
+        );
+
+    </script>
 </body>
+
 </html>
